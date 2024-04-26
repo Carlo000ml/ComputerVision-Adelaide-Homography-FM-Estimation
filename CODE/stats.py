@@ -329,5 +329,106 @@ def compute_wss_bss(data, labels):
 
     return wss, bss
 
+########################################## Average within-cluster distance
 
+def AWCD(residual_matrix , partition_matrix,fuzzifier=2):  # the lower the better
+    """
+    Compute the Avarage within-cluster distance
+
+    Parameters:
+    - residual_matrix
+    - Partition_matrix
+    - fuzzifier ----- The fuzzifier is a parameter controlling the "softness" of the clustering, as it approaches to 1, the clustering gets hard (element i,j either 0 or 1), experimentally a value of fuzzifier=2 gives good results. The same fuzzifier of the partition matrix muste be used
+    
+    Returns:
+    - AWCD 
+    """
+    N,c=residual_matrix.shape[0],residual_matrix.shape[1]
+    
+    AWCD=0
+    
+    for i in range(c):
+        numerator=0
+        denominator=0
+        
+        for j in range(N):
+            denominator+=partition_matrix[j,i]**fuzzifier
+            numerator+=(residual_matrix[j,i]**2)*partition_matrix[j,i]**fuzzifier
+            
+        
+        AWCD+=(1/c)* numerator/denominator
+    return AWCD
+    
+    
+    
+#########################################  Fuzzy silhouette
+def Fuzzy_silhouette(residual_matrix , partition_matrix ,alpha=1, fuzzifier=2): # the larger the better
+    """
+    Compute the Avarage within-cluster distance
+
+    Parameters:
+    - residual_matrix
+    - Partition_matrix
+    - fuzzifier ----- The fuzzifier is a parameter controlling the "softness" of the clustering, as it approaches to 1, the clustering gets hard (element i,j either 0 or 1), experimentally a value of fuzzifier=2 gives good results. The same fuzzifier of the partition matrix muste be used
+    - alpha ----- alpha is a user defined parameter, by default alpha=1 is used
+    
+    Returns:
+    - AWCD 
+    """
+    
+    
+    N=partition_matrix.shape[0]
+    c=partition_matrix.shape[1]
+    if c==1: return 1  # single model
+    
+    labels=np.zeros(N)
+
+    for i in range(N):
+        labels[i]=np.argmax(partition_matrix[i,:])
+        
+    # compute silhouette values using the hard clustering
+        
+    avarage_intracluster_distance=np.zeros(N)
+    for i in range(N):
+        l=labels[i].astype(int)
+        avarage_intracluster_distance[i]=np.mean(abs(residual_matrix[i,l]-residual_matrix[np.where(labels==l),l]))
+        
+    
+        
+    avarage_intercluster_distance=np.zeros(partition_matrix.shape)+np.inf
+    
+    for i in range(N):
+        l=labels[i]
+        for j in range(c):
+            if j!=l: avarage_intercluster_distance[i,j]=np.mean(abs(residual_matrix[i,j]-residual_matrix[np.where(labels==j),j]))
+                
+                
+    si=np.zeros(N)
+    for i in range(N):
+        a=avarage_intracluster_distance[i]
+        b=np.min(avarage_intercluster_distance[i,:])
+  
+        si[i]=(b-a)/np.max(np.array([a,b]))
+        
+
+        
+    
+    P_mat=partition_matrix.copy()
+    numerator=0
+    denominator=0
+    for i in range(N):
+        mu_p_index=np.argmax(P_mat[i,:])
+        mu_p=P_mat[i,mu_p_index]
+        P_mat[i,mu_p_index]=-np.inf
+        mu_q=np.max(P_mat[i,:])
+        
+        numerator+=((mu_p-mu_q)**alpha) *si[i]
+        denominator+=((mu_p-mu_q)**alpha)
+        
+
+        
+    FS=numerator/denominator
+        
+                
+    return FS
 
