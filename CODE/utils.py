@@ -4,22 +4,68 @@ import cv2
 import numpy as np
 import visual as vi
 from matplotlib import pyplot as plt
+import pygcransac
+
+
+def verify_pygcransac_H(src_points,dst_points, img1,img2,  threshold, confidence=0.99, spatial_coherence_weight=0.975, neighborhood_size=4, verbose=True):
+    """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using GC RANSAC and returns labels for inliers and outliers
+
+
+    Args:
+      src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
+      dst_points: Destination points as a NumPy array (same shape as src_points).
+      threshold: The projection error threshold used in the cost function.
+      confidence : confidence used to estimate the neighbors in the FAST Approximate Nearest Neighbors algorithm.
+      spatial_coherence_weight : weight assigned to the spatial correlation cost function in the energy minimization.
+      neighborhood_size : number of neighbors used in the computation of the spatial correlation cost function
+
+    Returns:
+      H : homography, (3x3 numpy matrix)
+      mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
+    """
+
+    
+    kps1,kps2,matches=build_keypts_matches(src_points, dst_points)
+    
+    correspondences = np.float32([ (kps1[m.queryIdx].pt + kps2[m.trainIdx].pt) for m in matches ]).reshape(-1,4)
+    inlier_probabilities = [] 
+    
+    h1=img1.shape[1]
+    w1=img1.shape[0]
+    h2=img2.shape[1]
+    w2=img2.shape[0]
+
+    H, mask = pygcransac.findHomography(
+        np.ascontiguousarray(correspondences), 
+        h1, w1, h2, w2,
+        use_sprt = False,
+        threshold=threshold,
+        conf=confidence,
+        spatial_coherence_weight =spatial_coherence_weight ,
+        neighborhood_size = neighborhood_size,
+        probabilities = inlier_probabilities,
+        sampler = 2,
+        use_space_partitioning = True)
+    if verbose: print (deepcopy(mask).astype(np.float32).sum(), 'inliers found')
+    return H, mask.astype(np.uint8)
+
+
 
 
 def compute_residual(src_, dst_, homography):
     """Given src points and dst points and the homograpgy, it returns the residuals associated to each pair of points
-    
-    
+
+
     Args:
       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
       dst_points: Destination points as a NumPy array (same shape as src_points).
       homography: The homography matrix as a NumPy array (shape: 3x3).
 
-  Returns:
+    Returns:
       A NumPy array containing the residual of each pair of points.
-  """
+    """
 
-    
+
     
     src_ = np.array(src_)
     dst_ = np.array(dst_)
@@ -33,45 +79,44 @@ def compute_residual(src_, dst_, homography):
     return residuals
 
 
-def verify_cv2_H(src_points, dst_points, ransacReprojThreshold=1):
+def verify_cv2_H(src_points, dst_points, ransacReprojThreshold=1 , verbose=True):
     """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using RANSAC and returns labels for inliers and outliers
-    
-    
+
+
     Args:
       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
       dst_points: Destination points as a NumPy array (same shape as src_points).
       ransacReprojThreshold: The projection error threshold.
 
-  Returns:
+    Returns:
       H : homography, (3x3 numpy matrix)
       mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
-  """
+    """
 
-    
+
     kps1, kps2, matches = build_keypts_matches(src_points, dst_points)
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, ransacReprojThreshold)
     inliers = deepcopy(mask).astype(np.float32).sum()
-    print(inliers, 'inliers found')
+    if verbose: print(inliers, 'inliers found')
     return H, mask.ravel()
 
 
 def verify_LMEDS_H(src_points, dst_points, confidence=0.975, verbose=True):
     
-        """Given src points and dst points and the confidence, it estimates the homography using LMEDS and returns labels for inliers and outliers
-    
-    
+    """Given src points and dst points and the confidence, it estimates the homography using LMEDS and returns labels for inliers and outliers
+
+
     Args:
       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
       dst_points: Destination points as a NumPy array (same shape as src_points).
       confidence: 
 
-  Returns:
+    Returns:
       H : homography, (3x3 numpy matrix)
       mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
-  """
-
+    """
     kps1, kps2, matches = build_keypts_matches(src_points, dst_points)
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
@@ -80,13 +125,13 @@ def verify_LMEDS_H(src_points, dst_points, confidence=0.975, verbose=True):
     return H, mask.ravel()
 
 
-def verify_cv2_FM(src_points, dst_points, ransacReprojThreshold=1):
+def verify_cv2_FM(src_points, dst_points, ransacReprojThreshold=1, verbose=True):
     kps1, kps2, matches = build_keypts_matches(src_points, dst_points)
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.FM_RANSAC, ransacReprojThreshold)
     inliers = deepcopy(mask).astype(np.float32).sum()
-    print(inliers, 'inliers found')
+    if verbose: print(inliers, 'inliers found')
     return H, mask.ravel()
 
 
@@ -100,16 +145,16 @@ def verify_LMEDS_FM(src_points, dst_points, confidence=0.975, verbose=True):
 
 
 def projectiveTransform(points, H):
-        """Given a set of points in 2D coordinates it applies the homography H on them.
-        Consider d=dimension of points, if 2D points d=2, if 3D points d=3. In our scenario d=2
-    
+    """Given a set of points in 2D coordinates it applies the homography H on them.
+    Consider d=dimension of points, if 2D points d=2, if 3D points d=3. In our scenario d=2
+
     Args:
       points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points). shape(N,2) for our instance
       H: Homography.
 
-  Returns:
+    Returns:
       (N,1,d) numpy array of points.
-  """
+    """
 
     return cv2.perspectiveTransform(points.reshape(-1, 1, 2), H)
 
@@ -117,28 +162,28 @@ def projectiveTransform(points, H):
 def extract_points(models, data):
     
     """Given the models and the data folder it
-    
+
     Args:
       models : list of coordinate points of len(models)= Number of models, organized as: assume we want to consider the model 0:
                models[0] is a list of len(models[0])=4 ;
-               
+
                - models[0][0]= list of coordinates x of points of the model 0, in the first image
                - models[0][1]= list of coordinates y of points of the model 0, in the first image
                - models[0][2]= list of coordinates x of points of the model 0, in the second image
                - models[0][3]= list of coordinates y of points of the model 0, in the second image
-               
+
       data : single data file from the folder of files
 
-  Returns:
+    Returns:
       points :  dictionary of 2D points coordinates for each model. keys= "src_points" and "dst_points"
               - src_points = list of arrays. One array for each model. src_points[0] is an array of points of model 0, shape (N , 2) each                                  point as an array of dim 2 [x_coord , y_coord]
               - dst_points = analogous for dst_points
-              
+
       inliers1 : numpy array of dim (N,2) with N total number of points. It is a collection of all the points that are inliers in img1.                        Usefull for residual matrix computation
       inliers2: numpy array of dim (N,2) with N total number of points. It is a collection of all the points that are inliers in img2.                        Usefull for residual matrix computation
-      
+
       labels of inliers : labels only for the inlier points. So for each point in inliers1 or inliers2 we know specifically its model.
-  """
+    """
     points = {"src_points": [], "dst_points": []}
     for i in range(len(models)):
         src_points = np.array(list(zip(models[i][0], models[i][1])))
@@ -173,35 +218,52 @@ def build_keypts_matches(src_points, dst_points):
     return src_kpts, dst_kpts, matches
 
 
-def draw_matches(img1, img2, src_points, dst_points, matchColor=(255, 255, 0), singlePointColor=None, flags=2,
-                 mask=None):
+def draw_matches(img1, img2, src_points, dst_points, title=None,matchColor=(255, 255, 0), singlePointColor=None, flags=2,
+                 mask=None, H=None,show_correct=False):
+    """ If H and show_correct then the corrected points are shown, according to H"""
     src_kpts, dst_kpts, matches = build_keypts_matches(src_points, dst_points)
     if mask is not None: mask = mask.ravel().tolist()
+        
 
     draw_params = dict(matchColor=matchColor, singlePointColor=singlePointColor, flags=flags)
     plt.figure(figsize=(12, 8))
-    plt.imshow(cv2.drawMatches(img1, src_kpts, img2, dst_kpts, matches, None, matchesMask=mask, **draw_params))
+    img_out=cv2.drawMatches(img1, src_kpts, img2, dst_kpts, matches, None, matchesMask=mask, **draw_params)
+    if H is not None and show_correct:
+            dst_correct=projectiveTransform(src_points,H).reshape(src_points.shape[0],2)
+    
+            src_kpts_corr, dst_kpts_corr, matches_corr = build_keypts_matches(src_points, dst_correct)
+    
+            img_correct=cv2.drawMatches(img1, src_kpts_corr, img2, dst_kpts_corr, matches_corr, None, matchesMask=mask, matchColor=(0,255,0), singlePointColor=singlePointColor, flags=2)
+
+         
+            img_out = cv2.addWeighted(img_out, 0.6, img_correct, 0.6, 0)
+            
+    if title is not None:
+        plt.title(title)
+    plt.imshow(img_out)
     return
 
 
-def build_residual_matrix(data, plot=False, verbose=True, type='H'):
+def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=5):
     
     """Given the data it automatically fit the homography or the fundamental matrix for each model and returns the residual matrix.
         It uses LMEDS.
-    
+
     Args:
-               
+
       data : single data file from the folder of files
-      
+
       plot :  if to plot the points that are considered outliers for the model
-      
+
       verbose : if to plot the total number of points of the model
-      
+
       type :  H for Homography, FM for Fundamental matrix
 
-  Returns:
+    Returns:
       residual_matrix  : numpy array of shape (Number of points , Number of models). At position i,j there is the residual of point i for                              model j
-  """
+    """
+
+    assert method in ["ransac" , "gc-ransac" , "lmeds"]
     
     img1, img2 = data["img1"], data["img2"]
 
@@ -222,24 +284,45 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H'):
     color = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255)]
 
     for i in range(len(models)):
+        outlier_indexes=[]
+
         src = points["src_points"][i]
         dst = points["dst_points"][i]
 
         if type == 'H':
-            cv2_M, cv2_mask = verify_LMEDS_H(src, dst, verbose=verbose)
+            if method=="lmeds":
+                cv2_M, cv2_mask = verify_LMEDS_H(src, dst, verbose=verbose)
+            if method=="gc-ransac":
+                cv2_M, cv2_mask = verify_pygcransac_H(src , dst , img1 , img2 , threshold=threshold[i], verbose=verbose)
+            if method=="ransac":
+                cv2_M, cv2_mask = verify_cv2_H(src, dst,threshold, verbose=verbose)  
+            src_outl=np.where(cv2_mask==0)
+        
+            outl=src[src_outl]
+        
+            for out in outl:
+                for j, arr in enumerate(tot_src):
+                    if np.array_equal(arr, out):
+                        outlier_indexes.append(j)
+    
         elif type == 'FM':
             cv2_M, cv2_mask = verify_LMEDS_FM(src, dst, verbose=verbose)
         else:
             warnings.warn("The given type is wrong. Types:\n'H'\n'FM'")
             return
 
-        if verbose: print("the total number of point is: ", len(src))
+        if verbose: 
+            print("the total number of point is: ", len(src))
+            print("The indexes of outlier points are:",outlier_indexes)
+            
 
         if plot:
             # random_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
             plt.figure()
+            
+            #color[i % len(color)]
 
-            draw_matches(img1, img2, src, dst, matchColor=color[i % len(color)], mask=1 - cv2_mask)
+            draw_matches(img1, img2, src, dst, matchColor=(255,0,0), mask=1 - cv2_mask, H=cv2_M,show_correct=True)
             plt.show()
 
         if type == 'H':
@@ -248,6 +331,99 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H'):
             residual_matrix[:, i] = compute_residuals_FM(tot_src, tot_dst, cv2_M, 'sampson')
 
     return residual_matrix
+
+
+def plot_residual_matrix(res,labl=None, show_bar=True):
+        if labl is not None: res=np.hstack((res, labl))
+    
+        plt.figure(figsize=(20, 10))  # Adjust figure size here
+        plt.imshow(res, cmap='hot', interpolation='nearest', aspect="auto")
+        title='Black = Outlier ; White = Inlier'
+        if show_bar: 
+            cbar = plt.colorbar()  # Add colorbar to show values
+            cbar.ax.tick_params(labelsize=10)  # Adjust colorbar label size
+            title="Heatmap"
+            
+
+        plt.title(title, fontsize=20)  # Adjust title font size
+        plt.xlabel('Models', fontsize=15)  # Adjust x-axis label font size
+        plt.ylabel('Points', fontsize=15)  # Adjust y-axis label font size
+        plt.show()
+        
+        return 
+    
+
+
+def soft_clustering_assignment(residual_matrix , thresholds):
+    """ Given the residual matrix for an image and the set of thresholds for each model, a soft clustering matrix is created. For each model, 
+    the inliers are the points such that their residuals is lower than the threshold of that model. Note, the clustering is soft because the       same point could be inlier for multiple models. 
+    
+    Args:
+
+      residual_matrix : a numpy array of shape (N,M) where N=number of points, M=number of models
+
+    Returns:
+      soft_clustering_matrix  : numpy array of shape (N,M). At position i,j, value of 1 if point i is inlier for model j, 0 otherwise
+    """
+    
+    assert residual_matrix.shape[1]==len(thresholds), "number of models in residual matrix different from numbero of models from threhsolds"
+    soft_clustering_assignment=np.zeros(res_matrix.shape)
+    
+    for i in range(len(thresholds)):
+        inlier_indexes=np.where(residual_matrix[:,i]<thresholds[i])
+        soft_clustering_assignment[inlier_indexes,i]+=1
+        
+    return soft_clustering_assignment
+
+
+
+
+def row_compuation(row, fuzzifier=2):
+    """ Given a raw of the residual matrix, this function returns a row of the partition matrix.
+    
+    Args:
+
+      residual_matrix_row : a numpy array of shape (M,), M=number of models
+
+    Returns:
+      partition_matrix_row : a numpy array of shape (M,), according to equation (3) in the paper (A fuzzy extension of the silhouette width criterion for cluster analysis ; R.J.G.B. Campello∗, E.R. Hruschka
+    """
+    
+    new_row=np.zeros(len(row))
+    
+    for i in range(len(row)):
+        for j in range(len(row)):
+            new_row[i]+=(row[i]/row[j])**(2/(fuzzifier-1))
+            
+        new_row[i]=new_row[i]**(-1)
+    return new_row
+
+
+def build_partition_matrix(residual_matrix):
+    """ Build the partition Matrix given the residual matrix"""
+    
+    partition_matrix=np.zeros(residual_matrix.shape)
+    
+    for i in range(residual_matrix.shape[0]):
+        partition_matrix[i,:]=row_compuation(residual_matrix[i,:])
+        
+    return partition_matrix
+
+
+def residual_H1_wrt_H2(src,H1,H2):
+    """ Compute the residuals of the homography H1 w.r.t homography H2"""
+    
+    dst1=projectiveTransform(src, H1)
+    dst2=projectiveTransform(src, H2)
+    
+    dst1 = dst1.reshape(src.shape[0], 2)
+    dst2 = dst2.reshape(src.shape[0], 2)
+    
+    residuals = (np.sum((dst1 - dst2) ** 2, axis=1)) ** 0.5
+
+    return residuals
+
+
 
 
 def point_belongs_to_model(models, type='H', method='sampson', threshold=1):
@@ -304,16 +480,16 @@ def compute_residual_different_model(M, models, type, method):
 
 def compute_inliers_residual_curve(data, res=None, type='H'):
     """Given the data it automatically estimates the homography or the fundamental matrix, compute the residuals and plot the residual curves.        returns residuals of inliers in incremental order.
-    
+
     Args:
-               
+
       data : single data file from the folder of files
-      
+
       type : H for Homography, FM for Fundamental Matrix
 
-  Returns:
+    Returns:
      inlier_residuals : list of numpy arrays. One array for model. Each array contains residuals in incremental order.
-  """
+    """
     outliers, models = vi.group_models(data)["outliers"], vi.group_models(data)["models"]
 
     points = extract_points(models, data)
@@ -371,17 +547,17 @@ def plot_res_curve(res, mask, title='Scatter Plot of Points'):
 
 def calculate_reprojection_error(src_points, dst_points, M, inlier_mask, type):
     """
-  This function calculates the reprojection error for points transformed using a homography.
+    This function calculates the reprojection error for points transformed using a homography.
 
-  Args:
+    Args:
       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
       dst_points: Destination points as a NumPy array (same shape as src_points).
       M: The homography matrix as a NumPy array (shape: 3x3).
       inlier_mask: A mask indicating inlier points (1 for inlier, 0 for outlier) as a NumPy array (same length as src_points).
 
-  Returns:
+    Returns:
       A NumPy array containing the reprojection errors for each point (only for inliers based on the mask).
-  """
+    """
 
     if type == 'H':
         # Project source points using the homography
@@ -399,15 +575,15 @@ def calculate_reprojection_error(src_points, dst_points, M, inlier_mask, type):
 
 def analyze_reprojection_error(data, thresholds=[1], method="LMEDS", type='H'):
     """
-  This function analyzes the average reprojection error for inliers after fitting with LMEDS at different thresholds.
+    This function analyzes the average reprojection error for inliers after fitting with LMEDS at different thresholds.
 
-  Args:
+    Args:
       data: A tuple containing source and destination points (src_points, dst_points).
       thresholds: A list of inlier thresholds to evaluate.
 
-  Returns:
+    Returns:
       A dictionary where keys are thresholds and values are the average reprojection errors for inliers at that threshold.
-  """
+    """
     outliers, models = vi.group_models(data)["outliers"], vi.group_models(data)["models"]
 
     points = extract_points(models, data)
