@@ -6,7 +6,7 @@ class Inlier_Thresholder:
     def __init__(self, values):
         self.values = values
         self.threshold = None
-        self.methods = ["IQR", "Median AD", "Variance based" ,"Rosseeuw SN", "Rosseeuw QN"]#, "First Jump","DBSCAN"]
+        self.methods = ["IQR", "Median AD", "Variance based", "Rosseeuw SN", "Rosseeuw QN"]#, "First Jump","DBSCAN"]
         self.internal_validation_measures = ["Silhouette", "BSS", "WSS"]
 
     ########### specify the method among the available ones and return the labels
@@ -16,7 +16,6 @@ class Inlier_Thresholder:
 
         if method == "IQR":
             return interquantile_outlier(self.values)
-
         if method == "DBSCAN":
             return anomaly_detection_DBSCAN(self.values)
         if method == "Median AD":
@@ -54,7 +53,7 @@ class Inlier_Thresholder:
     ############## Return the method that optimize the internal validation measure
     ############## Default is Silhouette: empirically the best one
 
-    def use_best_method(self, internal_validation_measure="Silhouette"):
+    def use_best_method(self, verbose=False, internal_validation_measure="Silhouette"):
 
         assert internal_validation_measure in self.internal_validation_measures
 
@@ -95,10 +94,12 @@ class Inlier_Thresholder:
         if internal_validation_measure == "WSS": to_use = np.argmin(score_coh)
 
         if to_use < len(self.methods):
-            print(self.methods[to_use])
+            if verbose:
+                print(self.methods[to_use])
 
             return self.compute_inlier_threshold(self.methods[to_use])
 
         if to_use == len(self.methods):
-            print("Ensemble")
+            if verbose:
+                print("Ensemble")
             return self.ensemble_inlier_thresholder()

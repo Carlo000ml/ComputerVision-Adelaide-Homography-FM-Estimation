@@ -1,3 +1,4 @@
+import math
 import statistics as st
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -5,6 +6,8 @@ from scipy import stats
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_samples, silhouette_score
 import matplotlib.cm as cm
+from utils import *
+from scipy.interpolate import interp1d
 
 
 def median_neighbor_distance(values):
@@ -127,6 +130,7 @@ def rousseeuwcroux_QN(values):
     A = np.abs(np.subtract.outer(values, values))
     y = A[np.triu_indices(n, k=1)]
     d = _d(n)
+    print(n)
     std_est = d * 2.2219 * np.percentile(y, 25)
 
     upper = np.median(values) + 3 * std_est
@@ -431,4 +435,33 @@ def Fuzzy_silhouette(residual_matrix , partition_matrix ,alpha=1, fuzzifier=2): 
         
                 
     return FS
+
+def compute_t_test(threshold, subset):
+    # Compute mean and standard deviation of subset
+    subset_mean = np.mean(subset)
+    subset_std = np.std(subset, ddof=1)  # Use sample standard deviation
+
+    # Compute t-statistic
+    t_statistic = (threshold - subset_mean) / (subset_std / np.sqrt(len(subset)))
+
+    # Compute p-value
+    degrees_of_freedom = len(subset) - 1
+    p_value = 2 * (1 - stats.t.cdf(abs(t_statistic), df=degrees_of_freedom))  # Two-tailed test
+
+    return t_statistic, p_value
+
+
+def compute_t_test1(old_value, new_value, subset):
+    # Compute mean and standard deviation of subset
+    subset_mean = np.mean(subset)
+    subset_std = np.std(subset, ddof=1)  # Use sample standard deviation
+
+    # Compute t-statistic
+    t_statistic = (new_value - old_value) / (subset_std / np.sqrt(len(subset)))
+
+    # Compute p-value
+    degrees_of_freedom = len(subset) - 1
+    p_value = 2 * (1 - stats.t.cdf(abs(t_statistic), df=degrees_of_freedom))  # Two-tailed test
+
+    return t_statistic, p_value
 

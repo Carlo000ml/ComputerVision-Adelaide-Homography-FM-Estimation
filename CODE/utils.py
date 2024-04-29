@@ -4,50 +4,50 @@ import cv2
 import numpy as np
 import visual as vi
 from matplotlib import pyplot as plt
-import pygcransac
-
-
-def verify_pygcransac_H(src_points,dst_points, img1,img2,  threshold, confidence=0.99, spatial_coherence_weight=0.975, neighborhood_size=4, verbose=True):
-    """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using GC RANSAC and returns labels for inliers and outliers
-
-
-    Args:
-      src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
-      dst_points: Destination points as a NumPy array (same shape as src_points).
-      threshold: The projection error threshold used in the cost function.
-      confidence : confidence used to estimate the neighbors in the FAST Approximate Nearest Neighbors algorithm.
-      spatial_coherence_weight : weight assigned to the spatial correlation cost function in the energy minimization.
-      neighborhood_size : number of neighbors used in the computation of the spatial correlation cost function
-
-    Returns:
-      H : homography, (3x3 numpy matrix)
-      mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
-    """
-
-    
-    kps1,kps2,matches=build_keypts_matches(src_points, dst_points)
-    
-    correspondences = np.float32([ (kps1[m.queryIdx].pt + kps2[m.trainIdx].pt) for m in matches ]).reshape(-1,4)
-    inlier_probabilities = [] 
-    
-    h1=img1.shape[1]
-    w1=img1.shape[0]
-    h2=img2.shape[1]
-    w2=img2.shape[0]
-
-    H, mask = pygcransac.findHomography(
-        np.ascontiguousarray(correspondences), 
-        h1, w1, h2, w2,
-        use_sprt = False,
-        threshold=threshold,
-        conf=confidence,
-        spatial_coherence_weight =spatial_coherence_weight ,
-        neighborhood_size = neighborhood_size,
-        probabilities = inlier_probabilities,
-        sampler = 2,
-        use_space_partitioning = True)
-    if verbose: print (deepcopy(mask).astype(np.float32).sum(), 'inliers found')
-    return H, mask.astype(np.uint8)
+# import pygcransac
+#
+#
+# def verify_pygcransac_H(src_points,dst_points, img1,img2,  threshold, confidence=0.99, spatial_coherence_weight=0.975, neighborhood_size=4, verbose=True):
+#     """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using GC RANSAC and returns labels for inliers and outliers
+#
+#
+#     Args:
+#       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
+#       dst_points: Destination points as a NumPy array (same shape as src_points).
+#       threshold: The projection error threshold used in the cost function.
+#       confidence : confidence used to estimate the neighbors in the FAST Approximate Nearest Neighbors algorithm.
+#       spatial_coherence_weight : weight assigned to the spatial correlation cost function in the energy minimization.
+#       neighborhood_size : number of neighbors used in the computation of the spatial correlation cost function
+#
+#     Returns:
+#       H : homography, (3x3 numpy matrix)
+#       mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
+#     """
+#
+#
+#     kps1,kps2,matches=build_keypts_matches(src_points, dst_points)
+#
+#     correspondences = np.float32([ (kps1[m.queryIdx].pt + kps2[m.trainIdx].pt) for m in matches ]).reshape(-1,4)
+#     inlier_probabilities = []
+#
+#     h1=img1.shape[1]
+#     w1=img1.shape[0]
+#     h2=img2.shape[1]
+#     w2=img2.shape[0]
+#
+#     H, mask = pygcransac.findHomography(
+#         np.ascontiguousarray(correspondences),
+#         h1, w1, h2, w2,
+#         use_sprt = False,
+#         threshold=threshold,
+#         conf=confidence,
+#         spatial_coherence_weight =spatial_coherence_weight ,
+#         neighborhood_size = neighborhood_size,
+#         probabilities = inlier_probabilities,
+#         sampler = 2,
+#         use_space_partitioning = True)
+#     if verbose: print (deepcopy(mask).astype(np.float32).sum(), 'inliers found')
+#     return H, mask.astype(np.uint8)
 
 
 
@@ -208,8 +208,7 @@ def extract_points(models, data):
 
 
 def build_keypts_matches(src_points, dst_points):
-    
-    
+
     src_kpts = [cv2.KeyPoint(x, y, 1) for x, y in src_points]
     dst_kpts = [cv2.KeyPoint(x, y, 1) for x, y in dst_points]
     assert len(src_kpts) == len(dst_kpts)
@@ -244,7 +243,7 @@ def draw_matches(img1, img2, src_points, dst_points, title=None,matchColor=(255,
     return
 
 
-def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=5):
+def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=None):
     
     """Given the data it automatically fit the homography or the fundamental matrix for each model and returns the residual matrix.
         It uses LMEDS.
@@ -263,6 +262,8 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
       residual_matrix  : numpy array of shape (Number of points , Number of models). At position i,j there is the residual of point i for                              model j
     """
 
+    if threshold is None:
+        threshold = [5]
     assert method in ["ransac" , "gc-ransac" , "lmeds"]
     
     img1, img2 = data["img1"], data["img2"]
@@ -292,10 +293,10 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
         if type == 'H':
             if method=="lmeds":
                 cv2_M, cv2_mask = verify_LMEDS_H(src, dst, verbose=verbose)
-            if method=="gc-ransac":
-                cv2_M, cv2_mask = verify_pygcransac_H(src , dst , img1 , img2 , threshold=threshold[i], verbose=verbose)
+            #if method=="gc-ransac":
+             #   cv2_M, cv2_mask = verify_pygcransac_H(src , dst , img1 , img2 , threshold=threshold[i], verbose=verbose)
             if method=="ransac":
-                cv2_M, cv2_mask = verify_cv2_H(src, dst,threshold, verbose=verbose)  
+                cv2_M, cv2_mask = verify_cv2_H(src, dst,threshold[i], verbose=verbose)
             src_outl=np.where(cv2_mask==0)
         
             outl=src[src_outl]
