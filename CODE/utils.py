@@ -588,26 +588,36 @@ def analyze_reprojection_error(data, thresholds=[1], method="LMEDS", type='H'):
     outliers, models = vi.group_models(data)["outliers"], vi.group_models(data)["models"]
 
     points = extract_points(models, data)
-    src_points, dst_points = points[1], points[2]
+    src_points, dst_points, lab = points[1], points[2], points[3]
     average_errors = {}
-    for threshold in thresholds:
+    for l in np.unique(lab):
         assert method.upper() == "LMEDS" or method.upper() == "RANSAC"
         if type == 'H':
             # Fit the model (homography) using LMEDS
             if method.upper() == "LMEDS":
-                M, mask = verify_LMEDS_H(src_points, dst_points)
+                M, mask = verify_LMEDS_H(src_points[lab == l],
+                                         dst_points[lab == l])
             elif method.upper() == "RANSAC":
-                M, mask = verify_cv2_H(src_points, dst_points, ransacReprojThreshold=threshold)
+                M, mask = verify_cv2_H(src_points[lab == l],
+                                       dst_points[lab == l],
+                                       ransacReprojThreshold=thresholds[l-1])
         elif type == 'FM':
             if method.upper() == "LMEDS":
-                M, mask = verify_LMEDS_FM(src_points, dst_points)
+                M, mask = verify_LMEDS_FM(src_points[lab == l],
+                                          dst_points[lab == l])
             elif method.upper() == "RANSAC":
-                M, mask = verify_cv2_FM(src_points, dst_points, ransacReprojThreshold=threshold)
+                M, mask = verify_cv2_FM(src_points[lab == l],
+                                        dst_points[lab == l],
+                                        ransacReprojThreshold=thresholds[l-1])
         inlier_mask = mask.ravel() > 0  # Convert mask to 1D array with True for inliers
 
         # Calculate reprojection errors and compute the average for inliers only
-        reprojection_errors = calculate_reprojection_error(src_points, dst_points, M, inlier_mask, type)
-        average_errors[threshold] = np.mean(reprojection_errors)
+        reprojection_errors = calculate_reprojection_error(src_points[lab == l],
+                                                           dst_points[lab == l],
+                                                           M,
+                                                           inlier_mask,
+                                                           type)
+        average_errors[thresholds[l-1]] = np.mean(reprojection_errors)
     return average_errors
 
 

@@ -1,6 +1,7 @@
 import math
 import statistics as st
 import numpy as np
+import scipy.stats
 from sklearn.cluster import DBSCAN
 from scipy import stats
 import matplotlib.pyplot as plt
@@ -130,7 +131,6 @@ def rousseeuwcroux_QN(values):
     A = np.abs(np.subtract.outer(values, values))
     y = A[np.triu_indices(n, k=1)]
     d = _d(n)
-    print(n)
     std_est = d * 2.2219 * np.percentile(y, 25)
 
     upper = np.median(values) + 3 * std_est
@@ -451,17 +451,171 @@ def compute_t_test(threshold, subset):
     return t_statistic, p_value
 
 
-def compute_t_test1(old_value, new_value, subset):
+def t_test(old_values, new_values):
+
     # Compute mean and standard deviation of subset
-    subset_mean = np.mean(subset)
-    subset_std = np.std(subset, ddof=1)  # Use sample standard deviation
+    mean2 = np.mean(old_values)
+    mean1 = np.mean(new_values)
+    subset_std = np.std(new_values-old_values, ddof=1)
 
     # Compute t-statistic
-    t_statistic = (new_value - old_value) / (subset_std / np.sqrt(len(subset)))
+    t_statistic = (mean1 - mean2) / (subset_std / np.sqrt(len(new_values)))
 
     # Compute p-value
-    degrees_of_freedom = len(subset) - 1
+    degrees_of_freedom = len(new_values) - 1
     p_value = 2 * (1 - stats.t.cdf(abs(t_statistic), df=degrees_of_freedom))  # Two-tailed test
 
     return t_statistic, p_value
+
+
+def f_test(sample1, sample2):
+    """
+        Perform F-test for variance.
+
+        Parameters:
+        - sample1, sample2: NumPy arrays representing the samples to be compared.
+
+        Returns:
+        - result: A tuple containing the F-statistic and the p-value.
+        """
+
+    # Compute variances
+    var1 = np.var(sample1, ddof=1)  # Use sample variance with Bessel's correction
+    var2 = np.var(sample2, ddof=1)
+
+    # Compute F-statistic
+    F = var1 / var2 if var1 >= var2 else var2 / var1
+
+    # Compute degrees of freedom
+    df1 = len(sample1) - 1
+    df2 = len(sample2) - 1
+
+    # Compute p-value
+    p_value = 2 * min(stats.f.cdf(F, df1, df2), 1 - stats.f.cdf(F, df1, df2))
+
+    return F, p_value
+
+# Forward search algorithm for outlier detection
+def forward_search(type, init_pts, dst_pts, M, significance=0.05):
+    '''
+    This function performs the forward search for outlier detection in homography and fundamental matrix estimation
+
+    Args:
+        type: perform the forward search analysis on a fundamental matrix FM or on a homography H. H is default
+        init_pts: The initial source points against which we have to fit the homography
+        dst_pts: The "gt" destination points used to compute the residuals
+        use_t: boolean value to say if we want to use t statistics to compute the threshold
+        significance: the significance against which we have to compute the result of the t statistics
+
+    Returns:
+        S: The final set of points
+        scores: The sorted list of the evaluated scores
+        threshold: The computed inlier threshold
+
+    '''
+
+    num_correspondences = len(init_pts)
+    sorted_indices = np.argsort(compute_residual(init_pts, dst_pts, M))
+
+    S = sorted_indices[:math.floor(len(sorted_indices) / 5)]
+    scores = compute_residual(init_pts[S], dst_pts[S], M)
+
+    S = S.tolist()
+    scores = scores.tolist()
+
+    new_score = []
+
+    for i in range(math.floor(len(sorted_indices) / 5) + 1, num_correspondences):
+
+        new_S = deepcopy(S)
+        new_S.append(sorted_indices[i])
+
+        if type == 'H':
+            new_score = compute_residual(init_pts[new_S[-1]].reshape((1, 2)),
+                                         dst_pts[new_S[-1]].reshape((1, 2)),
+                                         M)
+
+            M, mask = verify_LMEDS_H(init_pts[new_S],
+                                     dst_pts[new_S],
+                                     verbose=False)
+
+        elif type == 'FM':
+
+            new_score = compute_residuals_FM(init_pts[new_S[-1]].reshape((1, 2)),
+                                             dst_pts[new_S[-1]].reshape((1, 2)),
+                                             M)
+
+            M, mask = verify_LMEDS_FM(init_pts[new_S],
+                                      dst_pts[new_S],
+                                      verbose=False)
+
+        S = new_S
+
+        tmp_scr = np.array(scores)
+
+        #f_statistics, p_value = f_test(tmp_scr, np.append(tmp_scr, new_score))
+
+        f_statistics, p_value = scipy.stats.levene(tmp_scr, np.append(tmp_scr, new_score))
+
+        if p_value > significance:
+
+            threshold = scores[-1]
+
+        scores.append(new_score[0])
+
+    return S, sorted(scores), threshold
+
+
+def plot_forward_search(data, title='', type='H', significance=0.05):
+    outliers, models = vi.group_models(data)["outliers"], vi.group_models(data)["models"]
+
+    points = extract_points(models, data)
+
+    thresholds = []
+
+    for l in np.unique(points[3]):
+        src_points = points[1][np.where(points[3] == l)]
+
+        dst_points = points[2][np.where(points[3] == l)]
+
+        H_LMEDS, mask_LMEDS = verify_LMEDS_H(src_points, dst_points)
+
+        init_pts = src_points[np.argsort(mask_LMEDS)[::-1]]
+
+        unique_values, counts = np.unique(mask_LMEDS, return_counts=True)
+
+        # Perform forward search
+        inliers, scores, threshold = forward_search(type=type,
+                                                    init_pts=init_pts,
+                                                    M=H_LMEDS,
+                                                    dst_pts=dst_points[np.argsort(mask_LMEDS)[::-1]],
+                                                    significance=significance)
+
+        thresholds.append(threshold)
+
+        # Plot actual scores
+        plt.plot(range(1, len(scores) + 1), scores)
+
+        # Calculate approximate envelopes using order statistics
+        group_size = len(scores) // 10  # Divide into groups of 10% of total correspondences
+        min_scores = [min(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
+        max_scores = [max(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
+        x_values = np.arange(1, len(scores) + 1, group_size)
+        f_min = interp1d(x_values, min_scores, kind='previous')
+        f_max = interp1d(x_values, max_scores, kind='previous')
+
+        # Plot approximate envelopes
+        plt.plot(x_values, f_min(x_values), 'r--', label='Lower Envelope')
+        plt.plot(x_values, f_max(x_values), 'g--', label='Upper Envelope')
+
+        plt.axhline(threshold, linestyle='--')
+
+        plt.xlabel('Number of Correspondences')
+        plt.ylabel('Residual Scores ' + str(np.mean(scores)))
+        plt.title('Forward Search with Approximate Envelopes ' + title + ' model ' + str(l))
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    return thresholds
 
