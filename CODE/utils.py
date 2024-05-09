@@ -98,8 +98,8 @@ def verify_cv2_H(src_points, dst_points, ransacReprojThreshold=1 , verbose=True)
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, ransacReprojThreshold)
-    inliers = deepcopy(mask).astype(np.float32).sum()
-    if verbose: print(inliers, 'inliers found')
+    n_inliers = deepcopy(mask).astype(np.float32).sum()
+    if verbose: print(n_inliers, 'inliers found')
     return H, mask.ravel()
 
 
@@ -121,7 +121,8 @@ def verify_LMEDS_H(src_points, dst_points, confidence=0.975, verbose=True):
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.LMEDS, confidence=confidence)
-    if verbose: print(deepcopy(mask).astype(np.float32).sum(), 'inliers found')
+    n_inliers = deepcopy(mask).astype(np.float32).sum()
+    if verbose: print(n_inliers, 'inliers found')
     return H, mask.ravel()
 
 
@@ -130,8 +131,8 @@ def verify_cv2_FM(src_points, dst_points, ransacReprojThreshold=1, verbose=True)
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.FM_RANSAC, ransacReprojThreshold)
-    inliers = deepcopy(mask).astype(np.float32).sum()
-    if verbose: print(inliers, 'inliers found')
+    n_inliers = deepcopy(mask).astype(np.float32).sum()
+    if verbose: print(n_inliers, 'inliers found')
     return H, mask.ravel()
 
 
@@ -140,7 +141,8 @@ def verify_LMEDS_FM(src_points, dst_points, confidence=0.975, verbose=True):
     src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
     H, mask = cv2.findFundamentalMat(src_pts, dst_pts, cv2.FM_LMEDS, confidence=confidence)
-    if verbose: print(deepcopy(mask).astype(np.float32).sum(), 'inliers found')
+    n_inliers = deepcopy(mask).astype(np.float32).sum()
+    if verbose: print(n_inliers, 'inliers found')
     return H, mask.ravel()
 
 
@@ -284,6 +286,10 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
 
     color = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255)]
 
+    models_inliers = []
+
+    models_outliers = []
+
     for i in range(len(models)):
         outlier_indexes=[]
 
@@ -297,6 +303,7 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
              #   cv2_M, cv2_mask = verify_pygcransac_H(src , dst , img1 , img2 , threshold=threshold[i], verbose=verbose)
             if method=="ransac":
                 cv2_M, cv2_mask = verify_cv2_H(src, dst,threshold[i], verbose=verbose)
+
             src_outl=np.where(cv2_mask==0)
         
             outl=src[src_outl]
@@ -307,7 +314,21 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
                         outlier_indexes.append(j)
     
         elif type == 'FM':
-            cv2_M, cv2_mask = verify_LMEDS_FM(src, dst, verbose=verbose)
+
+            if method == "lmeds":
+                cv2_M, cv2_mask = verify_LMEDS_FM(src, dst, verbose=verbose)
+            # if method=="gc-ransac":
+            #   cv2_M, cv2_mask = verify_pygcransac_H(src , dst , img1 , img2 , threshold=threshold[i], verbose=verbose)
+            if method == "ransac":
+                cv2_M, cv2_mask = verify_cv2_FM(src, dst, threshold[i], verbose=verbose)
+            src_outl = np.where(cv2_mask == 0)
+
+            outl = src[src_outl]
+
+            for out in outl:
+                for j, arr in enumerate(tot_src):
+                    if np.array_equal(arr, out):
+                        outlier_indexes.append(j)
         else:
             warnings.warn("The given type is wrong. Types:\n'H'\n'FM'")
             return
@@ -331,7 +352,12 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
         elif type == 'FM':
             residual_matrix[:, i] = compute_residuals_FM(tot_src, tot_dst, cv2_M, 'sampson')
 
-    return residual_matrix
+        labs, counts = np.unique(cv2_mask, return_counts=True)
+
+        models_inliers.append(counts[np.where(labs == 1)])
+        models_outliers.append(len(cv2_mask) - counts[np.where(labs == 1)][0])
+
+    return residual_matrix, models_inliers, models_outliers
 
 
 def plot_residual_matrix(res,labl=None, show_bar=True):
@@ -500,7 +526,7 @@ def compute_inliers_residual_curve(data, res=None, type='H'):
     inlier_residuals = []
 
     if res is None:
-        res = build_residual_matrix(data, plot=False, verbose=False, type=type)
+        res, inl, outl = build_residual_matrix(data, plot=False, verbose=False, type=type)
 
     for i in range(res.shape[1]):  # for i in range(num of models)
 
@@ -510,7 +536,7 @@ def compute_inliers_residual_curve(data, res=None, type='H'):
 
         inlier_residuals.append(residuals)
 
-    return inlier_residuals
+    return inlier_residuals, inl, outl
 
 
 def plot_inliers_residual_curves(data, res=None):

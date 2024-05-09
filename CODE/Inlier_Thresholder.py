@@ -3,11 +3,13 @@ from stats import *
 class Inlier_Thresholder:
 
     ########### initialize the object with the 1D array of values
-    def __init__(self, values):
+    def __init__(self, values, n_inliers=None, n_outliers=None):
         self.values = values
         self.threshold = None
-        self.methods = ["IQR", "Median AD", "Variance based", "Rosseeuw SN", "Rosseeuw QN"]#, "First Jump","DBSCAN"]
+        self.methods = ["IQR", "Median AD", "Variance based", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "First Jump","DBSCAN"]
         self.internal_validation_measures = ["Silhouette", "BSS", "WSS"]
+        self.n_inliers = n_inliers
+        self.n_outliers = n_outliers
 
     ########### specify the method among the available ones and return the labels
     def compute_inlier_threshold(self, method):
@@ -30,6 +32,12 @@ class Inlier_Thresholder:
             return rousseeuwcroux_SN(self.values)
         if method == "Rosseeuw QN":
             return rousseeuwcroux_QN(self.values)
+        if method == "Forward Search":
+            tot = self.n_inliers + self.n_outliers
+            if self.n_inliers is not None and self.n_outliers is not None:
+                return forward_search(self.values, m0=self.n_outliers, percentile=(self.n_inliers/tot)*100)
+            elif self.n_inliers is None and self.n_outliers is None:
+                return forward_search(self.values)
 
         return
 

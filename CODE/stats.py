@@ -5,7 +5,8 @@ import scipy.stats
 from sklearn.cluster import DBSCAN
 from scipy import stats
 import matplotlib.pyplot as plt
-from sklearn.metrics import silhouette_samples, silhouette_score
+from sklearn.metrics import silhouette_samples, silhouette_score, mean_squared_error
+from sklearn.linear_model import LinearRegression
 import matplotlib.cm as cm
 from utils import *
 from scipy.interpolate import interp1d
@@ -436,35 +437,21 @@ def Fuzzy_silhouette(residual_matrix , partition_matrix ,alpha=1, fuzzifier=2): 
                 
     return FS
 
-def compute_t_test(threshold, subset):
-    # Compute mean and standard deviation of subset
-    subset_mean = np.mean(subset)
-    subset_std = np.std(subset, ddof=1)  # Use sample standard deviation
 
-    # Compute t-statistic
-    t_statistic = (threshold - subset_mean) / (subset_std / np.sqrt(len(subset)))
+def t_test(group1, group2):
+    """
+    Perform a two-sample t-test.
 
-    # Compute p-value
-    degrees_of_freedom = len(subset) - 1
-    p_value = 2 * (1 - stats.t.cdf(abs(t_statistic), df=degrees_of_freedom))  # Two-tailed test
+    Parameters:
+    group1 (array-like): First group of data.
+    group2 (array-like): Second group of data.
 
-    return t_statistic, p_value
+    Returns:
+    t_statistic (float): The calculated t-statistic.
+    p_value (float): The two-tailed p-value.
+    """
 
-
-def t_test(old_values, new_values):
-
-    # Compute mean and standard deviation of subset
-    mean2 = np.mean(old_values)
-    mean1 = np.mean(new_values)
-    subset_std = np.std(new_values-old_values, ddof=1)
-
-    # Compute t-statistic
-    t_statistic = (mean1 - mean2) / (subset_std / np.sqrt(len(new_values)))
-
-    # Compute p-value
-    degrees_of_freedom = len(new_values) - 1
-    p_value = 2 * (1 - stats.t.cdf(abs(t_statistic), df=degrees_of_freedom))  # Two-tailed test
-
+    t_statistic, p_value = stats.ttest_ind(group1, group2)
     return t_statistic, p_value
 
 
@@ -496,126 +483,99 @@ def f_test(sample1, sample2):
     return F, p_value
 
 # Forward search algorithm for outlier detection
-def forward_search(type, init_pts, dst_pts, M, significance=0.05):
+def forward_search(residuals, m0=2, percentile=95):
     '''
-    This function performs the forward search for outlier detection in homography and fundamental matrix estimation
+    This function performs the forward search for outlier detection
 
     Args:
-        type: perform the forward search analysis on a fundamental matrix FM or on a homography H. H is default
-        init_pts: The initial source points against which we have to fit the homography
-        dst_pts: The "gt" destination points used to compute the residuals
-        use_t: boolean value to say if we want to use t statistics to compute the threshold
-        significance: the significance against which we have to compute the result of the t statistics
+        residuals: the residuals of the model to be evaluated
+        m0: the number of expected outliers
+        max_iter: the maximum number of iterations to be performed
+        percentile: the percentage of inliers expected
 
     Returns:
-        S: The final set of points
-        scores: The sorted list of the evaluated scores
-        threshold: The computed inlier threshold
+        The function returns both the list of the inliers (residuals with a value less than the threshold)
+        and the evaluated threshold itself
 
     '''
 
-    num_correspondences = len(init_pts)
-    sorted_indices = np.argsort(compute_residual(init_pts, dst_pts, M))
+    m0 = m0
+    n_samples = len(residuals)
+    inlier_indices = []
+    outlier_indices = []
+    max_iter = len(residuals) - 1
 
-    S = sorted_indices[:math.floor(len(sorted_indices) / 5)]
-    scores = compute_residual(init_pts[S], dst_pts[S], M)
+    # Use of Median Absolute Deviation as a robust estimator
+    mad = stats.median_abs_deviation(residuals)
 
-    S = S.tolist()
-    scores = scores.tolist()
+    # Initial core set with smallest squared residuals
+    core_set = residuals[np.argsort(residuals ** 2)[:7]]
 
-    new_score = []
+    for _ in range(max_iter):
+        # Standardized residuals based on core set
+        std_residuals = (residuals - np.mean(core_set)) / mad
 
-    for i in range(math.floor(len(sorted_indices) / 5) + 1, num_correspondences):
+        # Identify potential outliers
+        potential_outliers = np.argsort(np.abs(std_residuals))[-m0:]
 
-        new_S = deepcopy(S)
-        new_S.append(sorted_indices[i])
+        # Update sets
+        inlier_indices.extend([i for i in range(n_samples) if i not in potential_outliers])
+        outlier_indices.extend(potential_outliers)
 
-        if type == 'H':
-            new_score = compute_residual(init_pts[new_S[-1]].reshape((1, 2)),
-                                         dst_pts[new_S[-1]].reshape((1, 2)),
-                                         M)
+        # Update core set with weights (consider alternative for single variable)
+        core_set = residuals[np.logical_not(np.isin(range(n_samples), potential_outliers))]
 
-            M, mask = verify_LMEDS_H(init_pts[new_S],
-                                     dst_pts[new_S],
-                                     verbose=False)
+        # Stopping criterion (consider modifications for single variable)
+        if len(potential_outliers) == 0:
+            break
 
-        elif type == 'FM':
+    # Threshold for outliers based on standardized residuals
+    threshold = np.percentile(np.abs(std_residuals), percentile)
 
-            new_score = compute_residuals_FM(init_pts[new_S[-1]].reshape((1, 2)),
-                                             dst_pts[new_S[-1]].reshape((1, 2)),
-                                             M)
-
-            M, mask = verify_LMEDS_FM(init_pts[new_S],
-                                      dst_pts[new_S],
-                                      verbose=False)
-
-        S = new_S
-
-        tmp_scr = np.array(scores)
-
-        #f_statistics, p_value = f_test(tmp_scr, np.append(tmp_scr, new_score))
-
-        f_statistics, p_value = scipy.stats.levene(tmp_scr, np.append(tmp_scr, new_score))
-
-        if p_value > significance:
-
-            threshold = scores[-1]
-
-        scores.append(new_score[0])
-
-    return S, sorted(scores), threshold
+    return abs((residuals < threshold).astype(int) - 1), threshold
 
 
-def plot_forward_search(data, title='', type='H', significance=0.05):
-    outliers, models = vi.group_models(data)["outliers"], vi.group_models(data)["models"]
+def plot_forward_search(src_points, dst_points, title='', type='H'):
 
-    points = extract_points(models, data)
+    if type == 'H':
+        M, mask = verify_LMEDS_H(src_points, dst_points)
+        scores = np.sort(compute_residual(src_points, dst_points, M))
 
-    thresholds = []
+    elif type == 'FM':
 
-    for l in np.unique(points[3]):
-        src_points = points[1][np.where(points[3] == l)]
+        M, mask = verify_LMEDS_FM(src_points, dst_points)
+        scores = np.sort(compute_residuals_FM(src_points, dst_points, M))
 
-        dst_points = points[2][np.where(points[3] == l)]
+    unique, counts = np.unique(mask, return_counts=True)
 
-        H_LMEDS, mask_LMEDS = verify_LMEDS_H(src_points, dst_points)
+    print(np.floor(counts[np.where(unique==1)]/len(mask)*100))
+    # Perform forward search
+    _, threshold = forward_search(residuals=scores,
+                                  m0=len(mask)-counts[np.where(unique==1)][0]+1,
+                                  percentile=np.floor(counts[np.where(unique==1)]/len(mask)*100))
 
-        init_pts = src_points[np.argsort(mask_LMEDS)[::-1]]
+    # Plot actual scores
+    plt.plot(range(1, len(scores) + 1), scores)
 
-        unique_values, counts = np.unique(mask_LMEDS, return_counts=True)
+    # Calculate approximate envelopes using order statistics
+    group_size = len(scores) // 10  # Divide into groups of 10% of total correspondences
+    min_scores = [min(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
+    max_scores = [max(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
+    x_values = np.arange(1, len(scores) + 1, group_size)
+    f_min = interp1d(x_values, min_scores, kind='previous')
+    f_max = interp1d(x_values, max_scores, kind='previous')
 
-        # Perform forward search
-        inliers, scores, threshold = forward_search(type=type,
-                                                    init_pts=init_pts,
-                                                    M=H_LMEDS,
-                                                    dst_pts=dst_points[np.argsort(mask_LMEDS)[::-1]],
-                                                    significance=significance)
+    # Plot approximate envelopes
+    plt.plot(x_values, f_min(x_values), 'r--', label='Lower Envelope')
+    plt.plot(x_values, f_max(x_values), 'g--', label='Upper Envelope')
 
-        thresholds.append(threshold)
+    plt.axhline(threshold, linestyle='--')
 
-        # Plot actual scores
-        plt.plot(range(1, len(scores) + 1), scores)
+    plt.xlabel('Number of Correspondences')
+    plt.ylabel('Residual Scores')
+    plt.title('Forward Search with Approximate Envelopes ' + title)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
-        # Calculate approximate envelopes using order statistics
-        group_size = len(scores) // 10  # Divide into groups of 10% of total correspondences
-        min_scores = [min(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
-        max_scores = [max(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
-        x_values = np.arange(1, len(scores) + 1, group_size)
-        f_min = interp1d(x_values, min_scores, kind='previous')
-        f_max = interp1d(x_values, max_scores, kind='previous')
-
-        # Plot approximate envelopes
-        plt.plot(x_values, f_min(x_values), 'r--', label='Lower Envelope')
-        plt.plot(x_values, f_max(x_values), 'g--', label='Upper Envelope')
-
-        plt.axhline(threshold, linestyle='--')
-
-        plt.xlabel('Number of Correspondences')
-        plt.ylabel('Residual Scores ' + str(np.mean(scores)))
-        plt.title('Forward Search with Approximate Envelopes ' + title + ' model ' + str(l))
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
-    return thresholds
-
+    return threshold
