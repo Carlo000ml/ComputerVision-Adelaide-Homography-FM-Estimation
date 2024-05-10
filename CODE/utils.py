@@ -245,7 +245,7 @@ def draw_matches(img1, img2, src_points, dst_points, title=None,matchColor=(255,
     return
 
 
-def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=None):
+def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=None, return_inl_out=False):
     
     """Given the data it automatically fit the homography or the fundamental matrix for each model and returns the residual matrix.
         It uses LMEDS.
@@ -357,7 +357,10 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
         models_inliers.append(counts[np.where(labs == 1)])
         models_outliers.append(len(cv2_mask) - counts[np.where(labs == 1)][0])
 
-    return residual_matrix, models_inliers, models_outliers
+    if return_inl_out:
+        return residual_matrix, models_inliers, models_outliers
+    else:
+        return residual_matrix
 
 
 def plot_residual_matrix(res,labl=None, show_bar=True):
@@ -505,7 +508,7 @@ def compute_residual_different_model(M, models, type, method):
     return residuals
 
 
-def compute_inliers_residual_curve(data, res=None, type='H'):
+def compute_inliers_residual_curve(data, res=None, type='H', return_inl_outl=False):
     """Given the data it automatically estimates the homography or the fundamental matrix, compute the residuals and plot the residual curves.        returns residuals of inliers in incremental order.
 
     Args:
@@ -536,7 +539,10 @@ def compute_inliers_residual_curve(data, res=None, type='H'):
 
         inlier_residuals.append(residuals)
 
-    return inlier_residuals, inl, outl
+    if return_inl_outl:
+        return inlier_residuals, inl, outl
+    else:
+        return inlier_residuals
 
 
 def plot_inliers_residual_curves(data, res=None):
