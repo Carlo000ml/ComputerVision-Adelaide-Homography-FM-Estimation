@@ -1,3 +1,5 @@
+import numpy as np
+
 from stats import *
 
 class Inlier_Thresholder:
@@ -6,7 +8,7 @@ class Inlier_Thresholder:
     def __init__(self, values, n_inliers=None, n_outliers=None):
         self.values = values
         self.threshold = None
-        self.methods = ["IQR", "Median AD", "Variance based", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "First Jump","DBSCAN"]
+        self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "IQR"]#, "Variance based"]#, "First Jump","DBSCAN"]
         self.internal_validation_measures = ["Silhouette", "BSS", "WSS"]
         self.n_inliers = n_inliers
         self.n_outliers = n_outliers
@@ -35,7 +37,8 @@ class Inlier_Thresholder:
         if method == "Forward Search":
             tot = self.n_inliers + self.n_outliers
             if self.n_inliers is not None and self.n_outliers is not None:
-                return forward_search(self.values, m0=self.n_outliers, percentile=(self.n_inliers/tot)*100)
+                #return forward_search(self.values, m0=self.n_outliers, percentile=(self.n_inliers / tot) * 100)
+                return forward_search(self.values, initial_m0=self.n_outliers)
             elif self.n_inliers is None and self.n_outliers is None:
                 return forward_search(self.values)
 

@@ -5,9 +5,12 @@ import scipy.stats
 from sklearn.cluster import DBSCAN
 from scipy import stats
 import matplotlib.pyplot as plt
+from sklearn.ensemble import IsolationForest
 from sklearn.metrics import silhouette_samples, silhouette_score, mean_squared_error
 from sklearn.linear_model import LinearRegression
 import matplotlib.cm as cm
+from sklearn.preprocessing import StandardScaler
+
 from utils import *
 from scipy.interpolate import interp1d
 
@@ -482,100 +485,77 @@ def f_test(sample1, sample2):
 
     return F, p_value
 
-# Forward search algorithm for outlier detection
-def forward_search(residuals, m0=2, percentile=95):
-    '''
-    This function performs the forward search for outlier detection
+
+def forward_search(residuals, initial_m0=2, initial_percentile=95, alpha=0.05, smoothing_factor=0.9):
+    """
+    Perform Forward Search with dynamic adjustment of m0.
 
     Args:
-        residuals: the residuals of the model to be evaluated
-        m0: the number of expected outliers
-        max_iter: the maximum number of iterations to be performed
-        percentile: the percentage of inliers expected
+    residuals: array of residuals from the model
+    initial_m0: initial number of expected outliers
+    percentile: the percentage of inliers expected
+    alpha: significance level for the chi-square test
 
     Returns:
-        The function returns both the list of the inliers (residuals with a value less than the threshold)
-        and the evaluated threshold itself
-
-    '''
-
-    m0 = m0
+    outlier_mask: boolean mask indicating outliers (True) and inliers (False)
+    threshold: final threshold used for outlier detection
+    """
     n_samples = len(residuals)
-    inlier_indices = []
-    outlier_indices = []
-    max_iter = len(residuals) - 1
+    max_iter = n_samples - 1
 
-    # Use of Median Absolute Deviation as a robust estimator
+    # Use Median Absolute Deviation as a robust estimator
     mad = stats.median_abs_deviation(residuals)
 
     # Initial core set with smallest squared residuals
-    core_set = residuals[np.argsort(residuals ** 2)[:7]]
+    core_set = residuals[np.argsort(residuals ** 2)[:len(residuals)//7]]
 
-    for _ in range(max_iter):
+    m0 = initial_m0
+    inlier_indices = set()
+    outlier_indices = set()
+    current_percentile = initial_percentile
+
+    for iteration in range(max_iter):
         # Standardized residuals based on core set
         std_residuals = (residuals - np.mean(core_set)) / mad
 
+        # Sort standardized residuals
+        sorted_indices = np.argsort(np.abs(std_residuals))
+
         # Identify potential outliers
-        potential_outliers = np.argsort(np.abs(std_residuals))[-m0:]
+        potential_outliers = sorted_indices[-m0:]
 
         # Update sets
-        inlier_indices.extend([i for i in range(n_samples) if i not in potential_outliers])
-        outlier_indices.extend(potential_outliers)
+        new_inliers = set(sorted_indices[:-m0]) - inlier_indices
+        inlier_indices.update(new_inliers)
+        outlier_indices.update(potential_outliers)
 
-        # Update core set with weights (consider alternative for single variable)
-        core_set = residuals[np.logical_not(np.isin(range(n_samples), potential_outliers))]
+        # Update core set
+        core_set = residuals[list(inlier_indices)]
 
-        # Stopping criterion (consider modifications for single variable)
-        if len(potential_outliers) == 0:
+        # Update current percentile
+        new_percentile = np.floor((len(inlier_indices) / n_samples) * 100)
+        current_percentile = smoothing_factor * current_percentile + (1 - smoothing_factor) * new_percentile
+        current_percentile = np.floor(max(min(current_percentile, 99), 80))  # Constrain between 80 and 99
+
+        # Dynamic adjustment of m0
+        if len(core_set) > 2:  # Ensure we have enough points for chi-square test
+            chi2_statistic = np.sum((std_residuals[list(inlier_indices)] ** 2))
+            p_value = 1 - stats.chi2.cdf(chi2_statistic, len(core_set) - 1)
+
+            if p_value < alpha:
+                m0 = min(m0 + 1, n_samples - len(core_set))
+            else:
+                m0 = max(initial_m0, m0 - 1)
+
+        # Stopping criterion
+        if len(potential_outliers) == 0 or len(inlier_indices) + m0 == n_samples:
             break
 
-    # Threshold for outliers based on standardized residuals
-    threshold = np.percentile(np.abs(std_residuals), percentile)
+    # Final threshold computation
+    threshold = np.percentile(np.abs(residuals), current_percentile)
 
-    return abs((residuals < threshold).astype(int) - 1), threshold
+    # Create outlier mask
+    outlier_mask = np.abs(residuals) > threshold
 
+    return outlier_mask, float(threshold)
 
-def plot_forward_search(src_points, dst_points, title='', type='H'):
-
-    if type == 'H':
-        M, mask = verify_LMEDS_H(src_points, dst_points)
-        scores = np.sort(compute_residual(src_points, dst_points, M))
-
-    elif type == 'FM':
-
-        M, mask = verify_LMEDS_FM(src_points, dst_points)
-        scores = np.sort(compute_residuals_FM(src_points, dst_points, M))
-
-    unique, counts = np.unique(mask, return_counts=True)
-
-    print(np.floor(counts[np.where(unique==1)]/len(mask)*100))
-    # Perform forward search
-    _, threshold = forward_search(residuals=scores,
-                                  m0=len(mask)-counts[np.where(unique==1)][0]+1,
-                                  percentile=np.floor(counts[np.where(unique==1)]/len(mask)*100))
-
-    # Plot actual scores
-    plt.plot(range(1, len(scores) + 1), scores)
-
-    # Calculate approximate envelopes using order statistics
-    group_size = len(scores) // 10  # Divide into groups of 10% of total correspondences
-    min_scores = [min(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
-    max_scores = [max(scores[i:i + group_size]) for i in range(0, len(scores), group_size)]
-    x_values = np.arange(1, len(scores) + 1, group_size)
-    f_min = interp1d(x_values, min_scores, kind='previous')
-    f_max = interp1d(x_values, max_scores, kind='previous')
-
-    # Plot approximate envelopes
-    plt.plot(x_values, f_min(x_values), 'r--', label='Lower Envelope')
-    plt.plot(x_values, f_max(x_values), 'g--', label='Upper Envelope')
-
-    plt.axhline(threshold, linestyle='--')
-
-    plt.xlabel('Number of Correspondences')
-    plt.ylabel('Residual Scores')
-    plt.title('Forward Search with Approximate Envelopes ' + title)
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    return threshold
