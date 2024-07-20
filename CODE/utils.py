@@ -5,6 +5,8 @@ import numpy as np
 import visual as vi
 from matplotlib import pyplot as plt
 from stats import *
+import pygcransac
+
 
 FITTING_ALGS = {"LMEDS": cv2.LMEDS,
                 "RANSAC": cv2.RANSAC,
@@ -40,30 +42,47 @@ def verify_FM(src_points, dst_points, threshold, verbose=True, method="LMEDS", s
     return H, mask.ravel()
 
 
-def verify_pygcransac_H(src_points, dst_points, threshold, verbose=True):
-    """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using GC RANSAC and returns labels for inliers and outliers
+def verify_pygcransac_H(src_points,dst_points, img1,img2,  threshold, confidence=0.99, spatial_coherence_weight=0.975, neighborhood_size=4, verbose=True):
+     """Given src points and dst points and the ransac reprojection error threshold, it estimates the homography using GC RANSAC and returns labels for inliers and outliers
 
 
-    Args:
-      src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
-      dst_points: Destination points as a NumPy array (same shape as src_points).
-      threshold: The projection error threshold used in the cost function.
-      confidence : confidence used to estimate the neighbors in the FAST Approximate Nearest Neighbors algorithm.
-      spatial_coherence_weight : weight assigned to the spatial correlation cost function in the energy minimization.
-      neighborhood_size : number of neighbors used in the computation of the spatial correlation cost function
+     Args:
+       src_points: Source points as a NumPy array (shape: Nx2 or Nx3, where N is the number of points).
+       dst_points: Destination points as a NumPy array (same shape as src_points).
+       threshold: The projection error threshold used in the cost function.
+       confidence : confidence used to estimate the neighbors in the FAST Approximate Nearest Neighbors algorithm.
+       spatial_coherence_weight : weight assigned to the spatial correlation cost function in the energy minimization.
+       neighborhood_size : number of neighbors used in the computation of the spatial correlation cost function
 
-    Returns:
-      H : homography, (3x3 numpy matrix)
-      mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
-    """
+     Returns:
+       H : homography, (3x3 numpy matrix)
+       mask : labels for inlier and outliers    1-inlier ;  0-outlier (numpy array of shape (No_points , )
+     """
 
-    kps1, kps2, matches = build_keypts_matches(src_points, dst_points)
-    src_pts = np.float32([kps1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kps2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
-    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.USAC_ACCURATE, threshold)
-    n_inliers = deepcopy(mask).astype(np.float32).sum()
-    if verbose: print(n_inliers, 'inliers found')
-    return H, mask.ravel()
+     kps1,kps2,matches=build_keypts_matches(src_points, dst_points)
+
+     correspondences = np.float32([ (kps1[m.queryIdx].pt + kps2[m.trainIdx].pt) for m in matches ]).reshape(-1,4)
+     inlier_probabilities = []
+
+     h1=img1.shape[1]
+     w1=img1.shape[0]
+     h2=img2.shape[1]
+     w2=img2.shape[0]
+
+     H, mask = pygcransac.findHomography(
+         np.ascontiguousarray(correspondences),
+         h1, w1, h2, w2,
+         use_sprt = False,
+         threshold=threshold,
+         conf=confidence,
+         spatial_coherence_weight =spatial_coherence_weight ,
+         neighborhood_size = neighborhood_size,
+         probabilities = inlier_probabilities,
+         sampler = 0,
+         use_space_partitioning = True)
+     if verbose: print (deepcopy(mask).astype(np.float32).sum(), 'inliers found')
+     return H, mask.astype(np.uint8)
+
 
 
 def verify_pygcransac_FM(src_points, dst_points, threshold, verbose=True):
