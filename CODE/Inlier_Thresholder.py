@@ -73,9 +73,12 @@ class Inlier_Thresholder:
         score_sep = []  # score for the separation BSS
 
         score_coh = []  # score for the cohesion WSS
+        
+        thresh=[]
 
         for met in self.methods:
             lab, _ = self.compute_inlier_threshold(met)
+            thresh.append(_)
 
             if len(np.unique(lab)) == 1:
                 score_sil.append(0), score_sep.append(0)
@@ -87,6 +90,7 @@ class Inlier_Thresholder:
                 score_sil.append(silhouette_avg)
                 score_sep.append(bss)
                 score_coh.append(wss)
+                
 
         lab = self.ensemble_inlier_thresholder()
 
@@ -99,8 +103,10 @@ class Inlier_Thresholder:
             score_sil.append(silhouette_avg)
             score_sep.append(bss)
             score_coh.append(wss)
+ 
+        
 
-        if internal_validation_measure == "Silhouette": to_use = np.argmax(score_sil)
+        if internal_validation_measure == "Silhouette": to_use = self.fair_silhouette(score_sil[:-1],thresh)
         if internal_validation_measure == "BSS": to_use = np.argmax(score_sep)
         if internal_validation_measure == "WSS": to_use = np.argmin(score_coh)
 
@@ -114,3 +120,18 @@ class Inlier_Thresholder:
             if verbose:
                 print("Ensemble")
             return self.ensemble_inlier_thresholder()
+        
+    def fair_silhouette(self,score_sil, thresh):
+        thresh=np.array(thresh)
+
+        max_sil=np.max(score_sil)
+
+        model_indexes=np.where(score_sil==max_sil)
+
+        if len(model_indexes[0])==1:
+            return np.argmax(score_sil)
+
+        else:
+            best_threshold=np.max(thresh[model_indexes])
+            return np.where(thresh==best_threshold)[0][0]
+                            
