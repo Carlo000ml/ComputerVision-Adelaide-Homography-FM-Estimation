@@ -5,10 +5,16 @@ from stats import *
 class Inlier_Thresholder:
 
     ########### initialize the object with the 1D array of values
-    def __init__(self, values, n_inliers=None, n_outliers=None):
+    def __init__(self, values, n_inliers=None, n_outliers=None, type="FM"):
         self.values = values
         self.threshold = None
-        self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "IQR"]#, "Variance based"]#, "First Jump","DBSCAN"]
+        if type=="FM":
+            self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "IQR"]#, "Variance based"]#, "First Jump","DBSCAN"]
+            
+        if type=="H":
+            self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "IQR" , "Variance based"]#, "First Jump","DBSCAN"]
+           
+         
         self.internal_validation_measures = ["Silhouette", "BSS", "WSS"]
         self.n_inliers = n_inliers
         self.n_outliers = n_outliers
