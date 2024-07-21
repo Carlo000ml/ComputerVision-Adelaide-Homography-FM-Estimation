@@ -5,9 +5,10 @@ from stats import *
 class Inlier_Thresholder:
 
     ########### initialize the object with the 1D array of values
-    def __init__(self, values, n_inliers=None, n_outliers=None, type="FM"):
+    def __init__(self, values, n_inliers=None, n_outliers=None, type="FM", alphas={"Median AD": 2.9 , "Variance based": 1.5 ,"Rosseeuw SN":3,"Rosseeuw QN":3 }):
         self.values = values
         self.threshold = None
+        self.alphas=alphas
         if type=="FM":
             self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "IQR"]#, "Variance based"]#, "First Jump","DBSCAN"]
             
@@ -23,23 +24,24 @@ class Inlier_Thresholder:
     def compute_inlier_threshold(self, method):
 
         assert method in self.methods
-
+        
+        
         if method == "IQR":
             return interquantile_outlier(self.values)
         if method == "DBSCAN":
             return anomaly_detection_DBSCAN(self.values)
         if method == "Median AD":
-            return Median_Absolute_Deviation(self.values)
+            return Median_Absolute_Deviation(self.values, alpha=self.alphas["Median AD"])
         if method == "Variance based":
-            return Variance_based(self.values)
+            return Variance_based(self.values, alpha=self.alphas["Variance based"])
 
         if method == "First Jump":
             return First_Jump(self.values)
 
         if method == "Rosseeuw SN":
-            return rousseeuwcroux_SN(self.values)
+            return rousseeuwcroux_SN(self.values, alpha=self.alphas["Rosseeuw SN"])
         if method == "Rosseeuw QN":
-            return rousseeuwcroux_QN(self.values)
+            return rousseeuwcroux_QN(self.values, alpha=self.alphas["Rosseeuw QN"])
         if method == "Forward Search":
             tot = self.n_inliers + self.n_outliers
             if self.n_inliers is not None and self.n_outliers is not None:
@@ -47,6 +49,7 @@ class Inlier_Thresholder:
                 return forward_search(self.values, initial_m0=self.n_outliers)
             elif self.n_inliers is None and self.n_outliers is None:
                 return forward_search(self.values)
+            
 
         return
 

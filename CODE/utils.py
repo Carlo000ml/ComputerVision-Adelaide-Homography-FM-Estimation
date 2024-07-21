@@ -350,7 +350,7 @@ def build_ensemble_mask(data, plot=False, verbose=True, type='H',threshold=None,
             plt.show()
 
 
-def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmeds", threshold=None,
+def build_residual_matrix(data, plot=False, verbose=False, type='H', method="lmeds", threshold=None,
                           return_inl_out=False, ensemble=False, show_correct=False):
     """Given the data it automatically fit the homography or the fundamental matrix for each model and returns the residual matrix.
         It uses LMEDS.
@@ -469,23 +469,24 @@ def build_residual_matrix(data, plot=False, verbose=True, type='H', method="lmed
         return residual_matrix
 
 
-def plot_residual_matrix(res, labl=None, show_bar=True):
-    if labl is not None: res = np.hstack((res, labl))
+def plot_residual_matrix(res,labl=None, show_bar=True,title='Black = Outlier ; White = Inlier'):
+        if labl is not None: res=np.hstack((res, labl))
+    
+        plt.figure(figsize=(20, 10))  # Adjust figure size here
+        plt.imshow(res, cmap='hot', interpolation='nearest', aspect="auto")
+        if show_bar: 
+            cbar = plt.colorbar()  # Add colorbar to show values
+            cbar.ax.tick_params(labelsize=10)  # Adjust colorbar label size
+            #title="Heatmap"
+            
 
-    plt.figure(figsize=(20, 10))  # Adjust figure size here
-    plt.imshow(res, cmap='hot', interpolation='nearest', aspect="auto")
-    title = 'Black = Outlier ; White = Inlier'
-    if show_bar:
-        cbar = plt.colorbar()  # Add colorbar to show values
-        cbar.ax.tick_params(labelsize=10)  # Adjust colorbar label size
-        title = "Heatmap"
-
-    plt.title(title, fontsize=20)  # Adjust title font size
-    plt.xlabel('Models', fontsize=15)  # Adjust x-axis label font size
-    plt.ylabel('Points', fontsize=15)  # Adjust y-axis label font size
-    plt.show()
-
-    return
+        plt.title(title, fontsize=20)  # Adjust title font size
+        plt.xlabel('Models', fontsize=15)  # Adjust x-axis label font size
+        plt.ylabel('Points', fontsize=15)  # Adjust y-axis label font size
+        plt.show()
+        
+        return 
+    
 
 
 def soft_clustering_assignment(residual_matrix, thresholds):
@@ -502,7 +503,7 @@ def soft_clustering_assignment(residual_matrix, thresholds):
 
     assert residual_matrix.shape[1] == len(
         thresholds), "number of models in residual matrix different from numbero of models from threhsolds"
-    soft_clustering_assignment = np.zeros(res_matrix.shape)
+    soft_clustering_assignment = np.zeros(residual_matrix.shape)
 
     for i in range(len(thresholds)):
         inlier_indexes = np.where(residual_matrix[:, i] < thresholds[i])

@@ -72,20 +72,20 @@ def interquantile_outlier(values):
 ### MAD
 
 
-def Median_Absolute_Deviation(values):
+def Median_Absolute_Deviation(values, alpha=2.9):
     upper = stats.median_abs_deviation(values, scale='normal')
 
-    upper = np.median(values) + 2.9 * upper
+    upper = np.median(values) + alpha * upper
 
     return abs((values < upper).astype(int) - 1), upper
 
 
 ### Variance based
 
-def Variance_based(values):
+def Variance_based(values, alpha=1.5):
     std = np.std(values)
 
-    upper = np.mean(values) + 1.5 * std  # 2 very good
+    upper = np.mean(values) + alpha * std  # 2 very good
 
     return abs((values < upper).astype(int) - 1), upper
 
@@ -110,7 +110,7 @@ def First_Jump(values):
 
 ### SN estimation method
 
-def rousseeuwcroux_SN(values):
+def rousseeuwcroux_SN(values, alpha=3):
     SN = []
 
     for i in range(len(values)):
@@ -123,21 +123,21 @@ def rousseeuwcroux_SN(values):
 
     std_est = c(len(values)) * 1.1926 * np.median(SN)
 
-    upper = np.median(values) + 3 * std_est
+    upper = np.median(values) + alpha * std_est
 
     return abs((values < upper).astype(int) - 1), upper
 
 
 ### QN estimation method
 
-def rousseeuwcroux_QN(values):
+def rousseeuwcroux_QN(values , alpha=3):
     n = len(values)
     A = np.abs(np.subtract.outer(values, values))
     y = A[np.triu_indices(n, k=1)]
     d = _d(n)
     std_est = d * 2.2219 * np.percentile(y, 25)
 
-    upper = np.median(values) + 3 * std_est
+    upper = np.median(values) + alpha * std_est
 
     return abs((values < upper).astype(int) - 1), upper
 
