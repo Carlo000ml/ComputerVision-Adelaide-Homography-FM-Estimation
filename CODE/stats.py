@@ -486,7 +486,7 @@ def f_test(sample1, sample2):
     return F, p_value
 
 
-def forward_search(residuals, initial_m0=2, initial_percentile=95, alpha=0.05, smoothing_factor=0.9):
+def forward_search(residuals, initial_m0=2, initial_percentile=95, alpha=0.01, smoothing_factor=0.95):
     """
     Perform Forward Search with dynamic adjustment of m0.
 
@@ -538,9 +538,8 @@ def forward_search(residuals, initial_m0=2, initial_percentile=95, alpha=0.05, s
         current_percentile = np.floor(max(min(current_percentile, 99), 80))  # Constrain between 80 and 99
 
         # Dynamic adjustment of m0
-        if len(core_set) > 2:  # Ensure we have enough points for chi-square test
-            chi2_statistic = np.sum((std_residuals[list(inlier_indices)] ** 2))
-            p_value = 1 - stats.chi2.cdf(chi2_statistic, len(core_set) - 1)
+        if len(core_set) > 2:  # Ensure we have enough points for f test
+            F, p_value = f_test(std_residuals[list(inlier_indices)], std_residuals[list(inlier_indices)[:-1]])
 
             if p_value < alpha:
                 m0 = min(m0 + 1, n_samples - len(core_set))
