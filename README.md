@@ -42,6 +42,7 @@ This project utilizes robust estimation methods like GC-RANSAC and LMEDS to enha
 The dataset consists of pairs of images with point correspondences, originally provided in a hard clustering format. Our goal is to convert this into a soft clustering format suitable for multimodel fitting.
 ## Instructions
 Create a folder structure like:
+```plaintext
 IACV_project/
 |-- adelFM/
 |         |-- data of adelFM
