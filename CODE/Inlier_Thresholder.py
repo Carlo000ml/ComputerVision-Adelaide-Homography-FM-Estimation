@@ -10,7 +10,7 @@ class Inlier_Thresholder:
         self.threshold = None
         self.alphas=alphas
         if type=="FM":
-            self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "Forward Search"]#, "IQR"]#, "Variance based"]#, "First Jump","DBSCAN"]
+            self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN",  "Variance based"]#, "IQR"]#, "Variance based"]#, "First "Forward Search",Jump","DBSCAN"]
             
         if type=="H":
             self.methods = ["Median AD", "Rosseeuw SN", "Rosseeuw QN", "IQR" , "Variance based"]#, "First Jump","DBSCAN"]
@@ -63,11 +63,13 @@ class Inlier_Thresholder:
             threshold = np.array(tmp)
             threshold[threshold == None] = 0.90
             L.append(threshold)
+            
 
         sums = np.array([sum(values) for values in zip(*L)])
 
         #### sums>=5 if more than 4 models agree
         return (sums >= 5).astype(int)
+
 
     ############## Select the internal validation measure as an objective function
     ############## Return the method that optimize the internal validation measure
