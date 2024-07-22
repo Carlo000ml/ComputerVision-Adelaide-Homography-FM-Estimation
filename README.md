@@ -27,6 +27,7 @@ This project utilizes robust estimation methods like GC-RANSAC and LMEDS to enha
 - `Inlier_Thresholder.py`: Script for thresholding inliers using change point detection methods.
 - `FINAL_H.ipynb`: Jupyter notebook for homography estimation.
 - `FINAL_FM.ipynb`: Jupyter notebook for fundamental matrix estimation.
+- `Statistics on Inlier Threshold `: Jupyter notebook for statistics on inlier thresholds on Homography case.
 - `IACV_PROJECT_SLIDES.pdf`: Presentation slides summarizing the project.
 - `IACV_project.pdf`: Detailed project report.
 
