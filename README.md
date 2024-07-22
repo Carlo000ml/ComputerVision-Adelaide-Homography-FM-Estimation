@@ -20,7 +20,7 @@ The AdelaideRMF dataset is widely used for validating multimodel fitting solutio
 This project utilizes robust estimation methods like GC-RANSAC and LMEDS to enhance the dataset and validate the results using clustering performance indexes such as Silhouette scores and Influence functions.
 
 ## Project Structure
-
+#### CODE
 - `stats.py`: Contains statistical functions for data analysis.
 - `visual.py`: Contains functions for data visualization.
 - `utils.py`: Utility functions used throughout the project.
@@ -30,6 +30,9 @@ This project utilizes robust estimation methods like GC-RANSAC and LMEDS to enha
 - `Statistics on Inlier Threshold `: Jupyter notebook for statistics on inlier thresholds on Homography case.
 - `IACV_PROJECT_SLIDES.pdf`: Presentation slides summarizing the project.
 - `IACV_project.pdf`: Detailed project report.
+#### DATASET
+- `adelFM`: contains the files for the Fundamental Matrix case.
+- `adelH`: contains the files for the Homography case.
 
 ## Datasets
 
