@@ -6,6 +6,7 @@ This project focuses on enhancing the AdelaideRMF dataset for robust multimodel 
 
 - [Introduction](#introduction)
 - [Project Structure](#project-structure)
+- [Instructions of use](#instructions)
 - [Datasets](#datasets)
 - [Methodology](#methodology)
 - [Results](#results)
@@ -39,6 +40,21 @@ This project utilizes robust estimation methods like GC-RANSAC and LMEDS to enha
 ### AdelaideRMF Dataset
 
 The dataset consists of pairs of images with point correspondences, originally provided in a hard clustering format. Our goal is to convert this into a soft clustering format suitable for multimodel fitting.
+## Instructions
+Create a folder structure like:
+IACV_project/
+|-- adelFM/
+|         |-- data of adelFM
+|-- adelH/
+|         |-- data of adelH
+|-- visual.py
+|-- stats.py
+|-- utils.py
+|-- Inlier_Thresholder.py
+|-- FINAL_H.ipynb
+|-- FINAL_FM.ipynb
+|-- Statistics on Inlier Threshold.ipynb
+
 
 ## Methodology
 
