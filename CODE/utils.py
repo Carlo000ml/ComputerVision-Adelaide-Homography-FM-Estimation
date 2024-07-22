@@ -308,8 +308,12 @@ def build_ensemble_mask(data, plot=False, verbose=True, type='H',threshold=None,
     tot_src = points[1]
 
     points = points[0]
+    
+    scores=[]
 
     if threshold is not None: ens_models = [[] for _ in threshold]
+        
+    labels_ens=[]
 
     for i in range(len(models)):
         outlier_indexes = []
@@ -322,19 +326,21 @@ def build_ensemble_mask(data, plot=False, verbose=True, type='H',threshold=None,
             dst = points["dst_points"][i]
 
         if threshold is not None:
-            for method in list(FITTING_ALGS.keys())[3:]:
+            for method in ['LMEDS_FM','RANSAC_FM','GC-RANSAC',"LO-RANSAC"]:#,list(FITTING_ALGS.keys())[3:]:
                 M, _ = verify_FM(src, dst, threshold=threshold[i], method=method.upper())
                 ens_models[i].append(compute_residuals_FM(src, dst, M))
         else:
-            for method in list(FITTING_ALGS.keys())[3:]:
+            for method in ['LMEDS_FM','RANSAC_FM','GC-RANSAC',"LO-RANSAC"]:#list(FITTING_ALGS.keys())[3:]:
                 M, _ = verify_FM(src, dst, threshold=threshold, method=method.upper())
                 ens_models[i].append(compute_residuals_FM(src, dst, M))
 
-        cv2_mask = np.where(np.sum(np.array(ens_models[i]), axis=0) / (len(FITTING_ALGS) - 2) > threshold[i], 0, 1)
+        cv2_mask = np.where(np.sum(np.array(ens_models[i]), axis=0) /4 > threshold[i], 0, 1) #threshold[i]
 
         src_outl = np.where(cv2_mask == 0)
 
         outl = src[src_outl]
+        
+        labels_ens.append(cv2_mask)
 
         for out in outl:
             for j, arr in enumerate(tot_src):
@@ -348,10 +354,12 @@ def build_ensemble_mask(data, plot=False, verbose=True, type='H',threshold=None,
             draw_matches(img1, img2, src, dst, matchColor=(255, 0, 0), mask=1 - cv2_mask)
             plt.grid(False)
             plt.show()
+            
+    return labels_ens
 
 
 def build_residual_matrix(data, plot=False, verbose=False, type='H', method="lmeds", threshold=None,
-                          return_inl_out=False, ensemble=False, show_correct=False):
+                          return_inl_out=False, ensemble=False, show_correct=False, metric="sampson"):
     """Given the data it automatically fit the homography or the fundamental matrix for each model and returns the residual matrix.
         It uses LMEDS.
 
@@ -453,7 +461,7 @@ def build_residual_matrix(data, plot=False, verbose=False, type='H', method="lme
         if type == 'H':
             residual_matrix[:, i] = compute_residual(tot_src, tot_dst, cv2_M)
         elif type == 'FM':
-            residual_matrix[:, i] = compute_residuals_FM(tot_src, tot_dst, cv2_M, 'sampson')
+            residual_matrix[:, i] = compute_residuals_FM(tot_src, tot_dst, cv2_M, metric)
 
         labs, counts = np.unique(cv2_mask, return_counts=True)
 
@@ -610,7 +618,7 @@ def compute_residual_different_model(M, models, type, method):
     return residuals
 
 
-def compute_inliers_residual_curve(data, res=None, type='H', return_inl_outl=False, verbose=True):
+def compute_inliers_residual_curve(data, res=None, type='H', return_inl_outl=False, verbose=True, metric="sampson"):
     """Given the data it automatically estimates the homography or the fundamental matrix, compute the residuals and plot the residual curves.        returns residuals of inliers in incremental order.
 
     Args:
@@ -631,7 +639,7 @@ def compute_inliers_residual_curve(data, res=None, type='H', return_inl_outl=Fal
     inlier_residuals = []
 
     if res is None:
-        res, inl, outl = build_residual_matrix(data, plot=False, verbose=verbose, type=type, return_inl_out=True)
+        res, inl, outl = build_residual_matrix(data, plot=False, verbose=verbose, type=type, return_inl_out=True, metric=metric)
 
     for i in range(res.shape[1]):  # for i in range(num of models)
 
