@@ -62,6 +62,7 @@ Various statistical methods are used to detect changes in the distribution of re
 - Median Absolute Value
 - Variance Based
 - Estimator Sn and Qn
+- Forward Search
 
 ### Performance Indexes
 
