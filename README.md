@@ -9,7 +9,6 @@ This project focuses on enhancing the AdelaideRMF dataset for robust multimodel 
 - [Datasets](#datasets)
 - [Methodology](#methodology)
 - [Results](#results)
-- [Dependencies](#dependencies)
 - [Contributors](#contributors)
 
 ## Introduction
