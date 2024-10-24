@@ -1,6 +1,6 @@
 # Robust Multimodel Fitting with Homography and Fundamental Matrices
 
-This project focuses on enhancing the AdelaideRMF dataset for robust multimodel fitting by cleaning the dataset and converting it into a soft clustering format. The goal is to improve the dataset's quality, making it more suitable for validating multimodel fitting solutions. The project involves methods for inlier/outlier detection and model fitting using robust statistical approaches, particularly focusing on homography and fundamental matrix estimation.
+This project focuses on enhancing the AdelaideRMF dataset for robust multimodel fitting by cleaning the dataset and converting it into a soft clustering format. The goal is to improve the dataset's quality, making it more suitable for validating multimodel fitting solutions. The project involves methods of inlier/outlier detection and model fitting using robust statistical approaches, particularly focusing on homography and fundamental matrix estimation.
 
 ## Table of Contents
 
@@ -14,7 +14,7 @@ This project focuses on enhancing the AdelaideRMF dataset for robust multimodel 
 
 ## Introduction
 
-The AdelaideRMF dataset is widely used for validating multimodel fitting solutions. However, it contains errors and is presented in a hard clustering format, which is not ideal for multimodel fitting scenarios. Our project aims to correct these issues by:
+The AdelaideRMF dataset is widely used for validating multimodel fitting solutions. However, it contains errors and it is presented in a hard clustering format, which is not ideal for multimodel fitting scenarios. Our project aims to correct these issues by:
 - Cleaning the dataset from errors
 - Re-proposing it in the form of soft clustering
 
