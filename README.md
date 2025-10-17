@@ -2,6 +2,17 @@
 
 This project focuses on enhancing the AdelaideRMF dataset for robust multimodel fitting by cleaning the dataset and converting it into a soft clustering format. The goal is to improve the dataset's quality, making it more suitable for validating multimodel fitting solutions. The project involves methods of inlier/outlier detection and model fitting using robust statistical approaches, particularly focusing on homography and fundamental matrix estimation.
 
+#### Some Results
+
+<p align="center">
+  <img src="Images/H corr 4(1).png" alt="example" width="45%" style="margin-right:10px;"/>
+  <img src="Images/H corr 3(1).png" alt="Unhealthy leaf example" width="45%"/>
+</p>
+<p align="center">
+  <img src="Images/IACV FUND 2(1).png" alt="Data augmentation example" width="45%" style="margin-right:10px;"/>
+  <img src="Images/IACV FUND 1(1).png" alt="Model prediction example" width="45%"/>
+</p>
+
 ## Table of Contents
 
 - [Introduction](#introduction)
